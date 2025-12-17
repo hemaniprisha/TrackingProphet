@@ -1,0 +1,17 @@
+# OS junk
+.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environments
+.venv/
+
+# Data & outputs
+data/
+results/
+*.pkl
+
+# IDE
+.vscode/

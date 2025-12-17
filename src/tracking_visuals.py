@@ -21,12 +21,11 @@ plt.rcParams['savefig.bbox'] = 'tight'
 
 
 class TrackingVisualizer:
-    """
-    Creates compelling, football-intelligent visualizations.
-    """
-    
+
+    # Creates Visualizations
+
     def __init__(self, analyzer):
-        """Initialize with analyzer object containing data and results."""
+        # Initialize with analyzer object containing data and results.
         self.analyzer = analyzer
         self.df = analyzer.df
         self.colors = {
@@ -39,13 +38,13 @@ class TrackingVisualizer:
         }
     
     def plot_model_comparison(self, combine_r2=-0.155, save_path='model_comparison.png'):
-        """
-        THE MONEY SHOT: Side-by-side comparison showing tracking beats combine.
         
-        Football Context:
-        This single chart tells the entire story - combine testing fails to predict
-        performance while tracking data captures what matters.
-        """
+        # Side-by-side comparison showing tracking beats combine.
+        
+        # Football Context:
+        # This single chart tells the entire story - combine testing fails to predict
+        # performance while tracking data captures what matters.
+
         fig, axes = plt.subplots(1, 2, figsize=(16, 7))
         
         # Get tracking model results
@@ -53,7 +52,7 @@ class TrackingVisualizer:
         
         # LEFT: Combine Model (your previous project)
         ax1 = axes[0]
-        ax1.text(0.5, 0.95, 'COMBINE METRICS', 
+        ax1.text(0.5, 0.95, 'Combine Metrics', 
                 ha='center', va='top', fontsize=20, fontweight='bold',
                 transform=ax1.transAxes)
         ax1.text(0.5, 0.85, '40-time • Vertical • Broad Jump • 3-Cone • Shuttle',
@@ -72,7 +71,7 @@ class TrackingVisualizer:
                 transform=ax1.transAxes, color=r2_color)
         
         # What it misses
-        ax1.text(0.5, 0.15, '❌ Route discipline\n❌ Separation ability\n❌ Ball tracking\n❌ YAC creation',
+        ax1.text(0.5, 0.15, '• Route discipline\n• Separation ability\n• Ball tracking\n• YAC creation',
                 ha='center', va='top', fontsize=11,
                 transform=ax1.transAxes, bbox=dict(boxstyle='round', facecolor='#ffebee'))
         
@@ -106,7 +105,7 @@ class TrackingVisualizer:
                 transform=ax2.transAxes, color=r2_color)
         
         # What it captures
-        ax2.text(0.5, 0.15, '✓ Real game speed\n✓ Separation skills\n✓ Route precision\n✓ Playmaking ability',
+        ax2.text(0.5, 0.15, '• Real game speed\n• Separation skills\n• Route precision\n• Playmaking ability',
                 ha='center', va='top', fontsize=11,
                 transform=ax2.transAxes, bbox=dict(boxstyle='round', facecolor='#e8f5e9'))
         
@@ -119,15 +118,15 @@ class TrackingVisualizer:
         
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"✓ Saved: {save_path}")
+        print(f" Saved: {save_path}")
         plt.show()
         
         return fig
     
     def plot_feature_importance_football(self, top_n=15, save_path='feature_importance.png'):
-        """
-        Feature importance with football context - what ACTUALLY predicts success.
-        """
+
+        # Feature importance with football context - what ACTUALLY predicts success.
+
         feature_imp = self.analyzer.results['feature_importance'].head(top_n).copy()
         
         fig, ax = plt.subplots(figsize=(12, 8))
@@ -193,17 +192,16 @@ class TrackingVisualizer:
         ax.grid(axis='x', alpha=0.3)
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"✓ Saved: {save_path}")
+        print(f" Saved: {save_path}")
         plt.show()
         
         return fig
     
     def plot_player_archetypes(self, save_path='player_archetypes.png'):
-        """
-        Visualize distinct receiver types - helps scouts understand player profiles.
-        """
+
+        # Visualize distinct receiver types - helps scouts understand player profiles.
         if 'archetype' not in self.df.columns:
-            print("⚠️  Run identify_archetypes() first!")
+            print("Run identify_archetypes() first!")
             return None
         
         # Get players with archetype assignments
@@ -297,19 +295,19 @@ class TrackingVisualizer:
                 ax.set_title(arch_info['name'], fontsize=11, fontweight='bold')
                 ax.axis('off')
         
-        plt.suptitle('Understanding Receiver Diversity: One Size Does NOT Fit All',
+        plt.suptitle('Understanding Receiver Diversity: One Size Does Not Fit All',
                     fontsize=16, fontweight='bold', y=0.98)
         
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"✓ Saved: {save_path}")
+        print(f" Saved: {save_path}")
         plt.show()
         
         return fig
     
     def plot_actual_vs_predicted(self, save_path='actual_vs_predicted.png'):
-        """
-        Show prediction accuracy - how well the model captures reality.
-        """
+
+        # Show prediction accuracy - how well the model captures reality.
+
         pred_data = self.analyzer.results['predictions']
         metrics = self.analyzer.results['metrics']
         
@@ -357,15 +355,14 @@ class TrackingVisualizer:
         
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"✓ Saved: {save_path}")
+        print(f"Saved: {save_path}")
         plt.show()
         
         return fig
     
     def plot_context_performance(self, save_path='context_matters.png'):
-        """
-        Show how context affects metrics - volume, coverage type, route depth.
-        """
+
+        # Show how context affects metrics - volume, coverage type, route depth.
         fig = plt.figure(figsize=(16, 10))
         gs = GridSpec(2, 2, figure=fig, hspace=0.3, wspace=0.3)
         
@@ -433,19 +430,17 @@ class TrackingVisualizer:
                     fontsize=16, fontweight='bold', y=0.98)
         
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"✓ Saved: {save_path}")
+        print(f"Saved: {save_path}")
         plt.show()
         
         return fig
     
     def create_player_card(self, player_name, save_path=None):
-        """
-        Generate a scouting report card for a specific player.
-        """
+        # Generate a scouting report card for a specific player.
         player_data = self.df[self.df['player_name'] == player_name]
         
         if len(player_data) == 0:
-            print(f"⚠️  Player '{player_name}' not found!")
+            print(f"Player '{player_name}' not found")
             return None
         
         player = player_data.iloc[0]
@@ -543,19 +538,19 @@ class TrackingVisualizer:
         if player.get('contested_catch_rate', 0) < 40:
             weaknesses.append("Struggles in traffic")
         
-        notes_text = "STRENGTHS:\n" + "\n".join(f"• {s}" for s in strengths[:3])
-        notes_text += "\n\nAREAS FOR DEVELOPMENT:\n" + "\n".join(f"• {w}" for w in weaknesses[:2])
+        notes_text = "Strengths:\n" + "\n".join(f"• {s}" for s in strengths[:3])
+        notes_text += "\n\nWeaknesses:\n" + "\n".join(f"• {w}" for w in weaknesses[:2])
         
         ax_notes.text(0.5, 0.5, notes_text,
                      ha='center', va='center', fontsize=11,
                      transform=ax_notes.transAxes,
                      bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
         
-        plt.suptitle('PLAYER SCOUTING REPORT', fontsize=16, fontweight='bold', y=0.98)
+        plt.suptitle('Player Scouting Report', fontsize=16, fontweight='bold', y=0.98)
         
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
-            print(f"✓ Saved: {save_path}")
+            print(f"Saved: {save_path}")
         
         plt.show()
         return fig
@@ -563,12 +558,10 @@ class TrackingVisualizer:
 
 # Helper function for easy use
 def create_all_visuals(analyzer, output_dir='.'):
-    """Generate all key visualizations."""
+    # Generate all key visualizations.
     viz = TrackingVisualizer(analyzer)
     
-    print("\n" + "="*80)
-    print("GENERATING ALL VISUALIZATIONS")
-    print("="*80)
+    print("\n\nCreating Visualizations")
     
     import os
     if not os.path.exists(output_dir):
@@ -581,5 +574,4 @@ def create_all_visuals(analyzer, output_dir='.'):
     viz.plot_player_archetypes(save_path=f'{output_dir}/4_player_archetypes.png')
     viz.plot_context_performance(save_path=f'{output_dir}/5_context_matters.png')
     
-    print("\n✅ All visualizations generated!")
     return viz

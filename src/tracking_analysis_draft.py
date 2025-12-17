@@ -32,12 +32,10 @@ plt.rcParams['font.size'] = 10
 
 
 class TrackingDataAnalyzer:
-    """
-    Comprehensive analyzer for football tracking data with football-context storytelling.
-    """
+    # Comprehensive analyzer for football tracking data with football-context storytelling.
     
     def __init__(self, data_path=None):
-        """Initialize analyzer with optional data path."""
+        # Initialize analyzer with optional data path.
         self.df = None
         self.feature_columns = []
         self.target_columns = []
@@ -48,10 +46,10 @@ class TrackingDataAnalyzer:
             self.load_data(data_path)
     
     def load_data(self, data_path):
-        """Load and perform initial data exploration."""
+        # Load and perform initial data exploration.
         self.df = pd.read_csv(data_path)
         print("="*80)
-        print("DATA LOADED SUCCESSFULLY")
+        print("Successful Data Load")
         print("="*80)
         print(f"\nDataset Shape: {self.df.shape[0]} players × {self.df.shape[1]} metrics")
         print(f"Seasons Covered: {self.df['season'].min()} - {self.df['season'].max()}")
@@ -61,15 +59,13 @@ class TrackingDataAnalyzer:
         return self
     
     def explore_data(self):
-        """
-        Comprehensive data exploration with football context.
-        """
+        # Comprehensive data exploration with football context.
         print("\n" + "="*80)
-        print("DATA EXPLORATION & QUALITY CHECK")
+        print("Data Quality Check")
         print("="*80)
         
         # Missing data analysis
-        print("\n MISSING DATA ANALYSIS")
+        print("\n Missing Data: ")
         print("-" * 80)
         missing = self.df.isnull().sum()
         missing_pct = (missing / len(self.df)) * 100
@@ -83,7 +79,7 @@ class TrackingDataAnalyzer:
             print(missing_df.head(15))
             
             # Football context for missing data
-            print("\nFOOTBALL CONTEXT:")
+            print("\nFootball Context:")
             print("Missing 'targeted' metrics → Player wasn't thrown to (limited targets)")
             print("Missing 'separation_VMAN' → Didn't face man coverage or insufficient sample")
             print("Missing 'YACOE/CPOE' → No catch opportunities or tracking limitations")
@@ -91,7 +87,7 @@ class TrackingDataAnalyzer:
             print("No missing data detected!")
         
         # Summary statistics for key metrics
-        print("\n\nKEY METRICS SUMMARY")
+        print("\n\nKey Metrics Summary")
         print("-" * 80)
         
         key_metrics = {
@@ -111,7 +107,7 @@ class TrackingDataAnalyzer:
                 print(f"  Range: [{data.min():.2f}, {data.max():.2f}]")
         
         # Volume distribution
-        print("\n\nPLAYING TIME DISTRIBUTION")
+        print("\n\nPlaying Time Distribution")
         print("-" * 80)
         play_bins = [0, 50, 100, 150, 200, 300, 1000]
         play_labels = ['<50 (Limited)', '50-100 (Rotational)', '100-150 (Starter)', 
@@ -119,18 +115,17 @@ class TrackingDataAnalyzer:
         self.df['volume_tier'] = pd.cut(self.df['total_plays'], bins=play_bins, labels=play_labels)
         print(self.df['volume_tier'].value_counts().sort_index())
         
-        print("\nFOOTBALL CONTEXT:")
+        print("\nFootball Context:")
         print("Sample size matters! Players with <50 plays have unreliable metrics.")
         print("Elite prospects typically have 150+ plays (heavy usage in college).")
         
         return self
     
     def engineer_features(self):
-        """
-        Engineer football-intelligent features with clear strategic context.
-        """
+        # Engineer football-intelligent features with clear strategic context.
+
         print("\n" + "="*80)
-        print("FEATURE ENGINEERING: BUILDING FOOTBALL-INTELLIGENT METRICS")
+        print("Feature Engineering")
         print("="*80)
         
         df = self.df.copy()
@@ -138,29 +133,29 @@ class TrackingDataAnalyzer:
         # ===================================================================
         # 1. ATHLETICISM PROFILE
         # ===================================================================
-        print("\n1. ATHLETICISM PROFILE")
+        print("\n1. Athleticism Profile")
         print("-" * 80)
         
         # Speed Score (consistent elite speed)
         df['speed_score'] = (df['max_speed_99'] + df['max_speed_30_inf_yards_max']) / 2
-        print("✓ Speed Score: Ability to reach and sustain top speed (deep threat indicator)")
+        print("Speed Score: Ability to reach and sustain top speed (deep threat indicator)")
         
         # Burst Efficiency (acceleration per play)
         df['burst_rate'] = (df['high_acceleration_count_SUM'] / df['total_plays']) * 100
-        print("✓ Burst Rate: High acceleration events per play (route explosion)")
+        print("Burst Rate: High acceleration events per play (route explosion)")
         
         # Top-End Acceleration (0-10 yard explosion)
         df['first_step_quickness'] = df['max_speed_0_10_yards_max']
-        print("✓ First Step Quickness: Speed in first 10 yards (release & separation)")
+        print("First Step Quickness: Speed in first 10 yards (release & separation)")
         
         # Functional Agility (decel ability for cuts)
         df['brake_rate'] = (df['high_deceleration_count_SUM'] / df['total_plays']) * 100
-        print("✓ Brake Rate: Deceleration events per play (cut sharpness)")
+        print(" Brake Rate: Deceleration events per play (cut sharpness)")
         
         # ===================================================================
         # 2. ROUTE RUNNING INTELLIGENCE
         # ===================================================================
-        print("\n\n2. ROUTE RUNNING INTELLIGENCE")
+        print("\n\n2. Route Running Intelligence")
         print("-" * 80)
         
         # Route Diversity Index (versatility)
@@ -186,7 +181,7 @@ class TrackingDataAnalyzer:
         # ===================================================================
         # 3. CONTESTED CATCH PROFILE
         # ===================================================================
-        print("\n\n3. CONTESTED CATCH ABILITY")
+        print("\n\n3. Contested Catch Ability")
         print("-" * 80)
         
         # Tight window success rate
@@ -208,7 +203,7 @@ class TrackingDataAnalyzer:
         # ===================================================================
         # 4. PLAYMAKING ABILITY (VALUE METRICS)
         # ===================================================================
-        print("\n\n4. PLAYMAKING & VALUE CREATION")
+        print("\n\n4. Playmaking and Value Creation")
         print("-" * 80)
         
         # YAC ability (already in data as YACOE)
@@ -222,34 +217,34 @@ class TrackingDataAnalyzer:
         # ===================================================================
         # 5. CHANGE OF DIRECTION (COD) ANALYSIS
         # ===================================================================
-        print("\n\n5. CHANGE OF DIRECTION MASTERY")
+        print("\n\n5. Change of Direction Ability")
         print("-" * 80)
         
         # Sharp cut ability (90 degree cuts - slants, digs, outs)
         df['sharp_cut_ability'] = (
             df['cod_top5_speed_entry_avg_90_'] + df['cod_top5_speed_exit_avg_90_']
         ) / 2
-        print("✓ Sharp Cut Ability: Speed through 90° cuts (slants, outs, digs)")
+        print("Sharp Cut Ability: Speed through 90° cuts (slants, outs, digs)")
         
         # Route bending (180 degree - comebacks, curls)
         df['route_bend_ability'] = (
             df['cod_top5_speed_entry_avg_180_'] + df['cod_top5_speed_exit_avg_180_']
         ) / 2
-        print("✓ Route Bend Ability: Speed through 180° cuts (comebacks, curls)")
+        print("Route Bend Ability: Speed through 180° cuts (comebacks, curls)")
         
         # Separation from cuts (already in data)
         df['cut_separation'] = df['cod_sep_generated_overall']
-        print("✓ Cut Separation: Yards of separation created from route breaks")
+        print("Cut Separation: Yards of separation created from route breaks")
         
         # ===================================================================
         # 6. WORKLOAD & DURABILITY
         # ===================================================================
-        print("\n\n6. WORKLOAD & USAGE INDICATORS")
+        print("\n\n6. Workload and Usage")
         print("-" * 80)
         
         # Volume tier (already created in exploration)
         df['high_volume_player'] = (df['total_plays'] >= 150).astype(int)
-        print("✓ High Volume Flag: 150+ plays (starter/feature player)")
+        print("High Volume Flag: 150+ plays (starter/feature player)")
         
         # Distance per play (efficiency + usage type)
         df['distance_per_play'] = df['play_distance_SUM'] / df['total_plays']
@@ -265,7 +260,7 @@ class TrackingDataAnalyzer:
         # ===================================================================
         # 7. COMPOSITE SCORES (HOLISTIC RATINGS)
         # ===================================================================
-        print("\n\n7. COMPOSITE RATING SYSTEMS")
+        print("\n\n7. Combined Rating Metrics")
         print("-" * 80)
         
         # Elite Athleticism Score (0-100 scale)
@@ -283,28 +278,27 @@ class TrackingDataAnalyzer:
                 lambda x: (x - x.mean()) / x.std() if x.std() > 0 else 0
             )
             df['route_running_grade'] = (route_norm.mean(axis=1) * 10 + 50).clip(0, 100)
-            print("✓ Route Running Grade: Separation + versatility (0-100 scale)")
+            print("Route Running Grade: Separation + versatility (0-100 scale)")
         
         # Overall Prospect Score
         key_features = ['athleticism_score', 'route_running_grade', 'yac_ability']
         available_features = [f for f in key_features if f in df.columns]
         if available_features:
             df['prospect_score'] = df[available_features].mean(axis=1)
-            print("✓ Prospect Score: Holistic evaluation (weighted composite)")
+            print("Prospect Score: Holistic evaluation (weighted composite)")
         
         print("\n" + "="*80)
-        print(f"FEATURE ENGINEERING COMPLETE: {len([c for c in df.columns if c not in self.df.columns])} new features created")
+        print(f"Successful Feature Engineering: {len([c for c in df.columns if c not in self.df.columns])} new features created")
         print("="*80)
         
         self.df = df
         return self
     
     def identify_archetypes(self, n_clusters=5):
-        """
-        Identify distinct receiver archetypes using clustering.
-        """
+
+        # Identify distinct receiver archetypes using clustering.
         print("\n" + "="*80)
-        print("PLAYER ARCHETYPE IDENTIFICATION")
+        print("Player Archetype Identification")
         print("="*80)
         
         # Select features for clustering - use only features we created
@@ -323,7 +317,7 @@ class TrackingDataAnalyzer:
                 else:
                     print(f"{feat}: no data available")
             else:
-                print(f"⚠️  {feat}: column not found")
+                print(f" {feat}: column not found")
         
         if len(available_features) < 2:
             print("\n Insufficient features for clustering. Skipping archetype analysis.")
@@ -354,7 +348,7 @@ class TrackingDataAnalyzer:
         cluster_data['archetype'] = kmeans.fit_predict(X_scaled)
         
         # Analyze each cluster
-        print("\n RECEIVER ARCHETYPES IDENTIFIED:\n")
+        print("\n Receiver Archetype Identified:\n")
         
         archetype_names = {
             0: "Deep Threat Burners",
@@ -388,11 +382,10 @@ class TrackingDataAnalyzer:
         
         return self
     def prepare_modeling_data(self, target='auto', min_plays=50):
-        """
-        Prepare clean dataset for modeling with draft/production targets.
-        """
+        # Prepare clean dataset for modeling with draft/production targets.
+        
         print("\n" + "="*80)
-        print("PREPARING DATA FOR PREDICTIVE MODELING")
+        print("Preparing Data for Modeling: ")
         print("="*80)
         
         # Filter to players with sufficient sample size
@@ -484,11 +477,9 @@ class TrackingDataAnalyzer:
         return X_clean, y_clean    
 
     def build_models(self, X, y, test_size=0.25):
-        """
-        Build and evaluate predictive models.
-        """
+        # Build and evaluate predictive models.
         print("\n" + "="*80)
-        print("BUILDING PREDICTIVE MODELS")
+        print("Building Models")
         print("="*80)
         
         # Train/test split
@@ -522,7 +513,7 @@ class TrackingDataAnalyzer:
         test_mae = mean_absolute_error(y_test, y_pred_test)
         test_rmse = np.sqrt(mean_squared_error(y_test, y_pred_test))
         
-        print(f"\n MODEL PERFORMANCE:")
+        print(f"\n Model Performance:")
         print(f"  Training R²: {train_r2:.3f}")
         print(f"  Test R²: {test_r2:.3f}")
         print(f"  Test MAE: {test_mae:.3f}")
@@ -561,13 +552,7 @@ class TrackingDataAnalyzer:
 
 if __name__ == "__main__":
     print("""
-    ╔══════════════════════════════════════════════════════════════════════════╗
-    ║                                                                          ║
-    ║   TRACKING-DERIVED METRICS FOR WR EVALUATION & DRAFT STRATEGY            ║
-    ║                                                                          ║
-    ║   From Static Testing to Dynamic Performance                             ║
-    ║                                                                          ║
-    ╚══════════════════════════════════════════════════════════════════════════╝
+        College Tracking Data to Draft Results                            
     """)
     
     # Initialize analyzer
