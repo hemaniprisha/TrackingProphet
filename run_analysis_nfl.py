@@ -99,13 +99,14 @@ def main():
     analyzer = TrackingDataAnalyzer(args.data)
     analyzer.explore_data()
     analyzer.engineer_features()
-    analyzer.identify_archetypes(n_clusters=5)
 
     analyzer.load_rookie_nfl_performance(
         start_year=args.rookie_start_year,
         end_year=args.rookie_end_year
     )
     analyzer.merge_tracking_with_rookie_performance()
+    analyzer.identify_archetypes(n_clusters=5)
+
 
 
     # --------------------------------------------------------------------------
@@ -134,6 +135,21 @@ def main():
     if not args.quick:
         pipeline.build_ensemble(X, y)
         pipeline.analyze_feature_interactions(X, y)
+        # Hyperparameter tuning
+        best_model_name = pipeline.results['model_comparison'].iloc[0]['Model']
+        if best_model_name in ['xgboost', 'lightgbm']:
+            pipeline.hyperparameter_tuning(X, y, model_name=best_model_name)
+            pipeline.compare_models(X, y)
+        
+        # SHAP analysis
+        try:
+            pipeline.shap_analysis(X, sample_size=min(100, len(X)))
+        except Exception as e:
+            print(f"SHAP analysis skipped: {str(e)}")
+        
+        # Uncertainty quantification  
+        pipeline.quantify_uncertainty(X, y, n_iterations=50)
+
 
     # --------------------------------------------------------------------------
     # Train / Test predictions (REQUIRED by visuals)
@@ -147,7 +163,7 @@ def main():
     )
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
+        X, y, test_size=0.25, random_state=42
     )
 
     y_pred_train = best_model.predict(X_train)
@@ -157,15 +173,23 @@ def main():
     # Results object (EXACT schema expected by tracking_visuals.py)
     # --------------------------------------------------------------------------
 
+    target_col = 'targets_per_game'  # Default
+    if hasattr(y, 'name') and y.name:
+        target_col = y.name
+    elif isinstance(y, pd.Series) and y.name:
+        target_col = y.name
+
     analyzer.results = {
         "model_comparison": pipeline.results["model_comparison"],
         "feature_importance": compute_feature_importance(best_model, X),
         "predictions": {
+            "X_train": X_train,
+            "X_test": X_test,
             "y_train": y_train,
             "y_pred_train": y_pred_train,
             "y_test": y_test,
             "y_pred_test": y_pred_test,
-            "target_name": y.name if hasattr(y, "name") else "target",
+            "target_name": target_col,
         },
         "metrics": {
             "train_r2": r2_score(y_train, y_pred_train),
@@ -174,6 +198,8 @@ def main():
             "test_mae": mean_absolute_error(y_test, y_pred_test),
             "train_rmse": np.sqrt(mean_squared_error(y_train, y_pred_train)),
             "test_rmse": np.sqrt(mean_squared_error(y_test, y_pred_test)),
+            "cv_mean": pipeline.results["model_comparison"].iloc[0]['CV R² Mean'] if 'CV R² Mean' in pipeline.results["model_comparison"].columns else 0,
+            "cv_std": pipeline.results["model_comparison"].iloc[0]['CV R² Std'] if 'CV R² Std' in pipeline.results["model_comparison"].columns else 0,
         },
     }
 

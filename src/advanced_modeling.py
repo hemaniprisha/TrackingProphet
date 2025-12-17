@@ -563,6 +563,26 @@ class AdvancedModelingPipeline:
 
         # Aggregate absolute SHAP values for global feature importance
         mean_abs_shap = np.abs(shap_values).mean(axis=0)
+
+        # Create feature importance DataFrame
+        shap_importance = pd.DataFrame({
+            'feature': X.columns,
+            'shap_importance': mean_abs_shap
+        }).sort_values('shap_importance', ascending=False)
+        print("\nTop 10 Features by SHAP Importance:")
+        print(shap_importance.head(10).to_string(index=False))
+        self.results['shap'] = {
+            'values': shap_values,
+            'mean_abs': mean_abs_shap,
+            'feature_names': X.columns.tolist(),
+            'importance_df': shap_importance,
+            'sample_size': len(X_sample)
+        }
+
+        
+        print(f"SHAP analysis complete for {len(X_sample)} samples")
+        return self
+
     def quantify_uncertainty(self, X, y, n_iterations=100):
         """
         Estimate prediction uncertainty using bootstrap resampling.
@@ -579,6 +599,9 @@ class AdvancedModelingPipeline:
 
         Returns: self
         """
+        print("\n\nUncertainty Quantification")
+        print(f"Running {n_iterations} bootstrap iterations...")
+        
         # Test split reused from compare_models
         X_test = self.results['X_test']
         y_test = self.results['y_test']
@@ -589,6 +612,9 @@ class AdvancedModelingPipeline:
 
         # Resample training data and retrain the model each iteration
         for i in range(n_iterations):
+            if (i + 1) % 20 == 0:
+                print(f"   Iteration {i + 1}/{n_iterations}")
+                
             X_boot, y_boot = resample(
                 self.results['X_train'],
                 self.results['y_train'],
@@ -612,6 +638,33 @@ class AdvancedModelingPipeline:
 
         # Fraction of true values falling inside the interval
         coverage = np.mean((y_test >= pred_lower) & (y_test <= pred_upper))
+        
+        # R² confidence interval
+        r2_lower = np.percentile(bootstrap_r2s, 2.5)
+        r2_upper = np.percentile(bootstrap_r2s, 97.5)
+        r2_mean = np.mean(bootstrap_r2s)
+        
+        print(f"\nResults:")
+        print(f"   R² Mean: {r2_mean:.3f}")
+        print(f"   R² 95% CI: [{r2_lower:.3f}, {r2_upper:.3f}]")
+        print(f"   Prediction Coverage: {coverage:.1%}")
+        
+        # Store results
+        self.results['uncertainty'] = {
+            'bootstrap_predictions': bootstrap_predictions,
+            'pred_mean': pred_mean,
+            'pred_lower_95': pred_lower,
+            'pred_upper_95': pred_upper,
+            'coverage': coverage,
+            'r2_distribution': bootstrap_r2s,
+            'r2_mean': r2_mean,
+            'r2_ci_lower': r2_lower,
+            'r2_ci_upper': r2_upper,
+            'n_iterations': n_iterations
+        }
+        
+        print(f"Uncertainty quantification complete")
+        return self
 
 def run_advanced_analysis(X, y):
     """

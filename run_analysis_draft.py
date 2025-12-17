@@ -374,7 +374,9 @@ Examples:
             'y_train': advanced_pipeline.results['y_train'],
             'y_test': advanced_pipeline.results['y_test'],
             'y_pred_train': advanced_pipeline.best_model.predict(advanced_pipeline.results['X_train']),
-            'y_pred_test': advanced_pipeline.best_model.predict(advanced_pipeline.results['X_test'])
+            'y_pred_test': advanced_pipeline.best_model.predict(advanced_pipeline.results['X_test']),
+            'target_name': y.name if hasattr(y, 'name') else 'draft_capital'  # ADD THIS
+
         },
         'metrics': {
             'train_r2': advanced_pipeline.results['model_comparison'].iloc[0]['Train R²'],

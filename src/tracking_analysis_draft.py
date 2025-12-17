@@ -332,7 +332,7 @@ class TrackingDataAnalyzer:
         if len(cluster_data) < n_clusters:
             print(f"\n Only {len(cluster_data)} players with complete data.")
             print(f"   Need at least {n_clusters} for {n_clusters} clusters.")
-            print("   Reducing to {min(3, len(cluster_data))} clusters...")
+            print(f"   Reducing to {min(3, len(cluster_data))} clusters...")
             n_clusters = min(3, max(2, len(cluster_data) // 10))
         
         if len(cluster_data) < 10:
