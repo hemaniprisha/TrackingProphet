@@ -1,4 +1,4 @@
-# 🎯 Tracking Prophet
+# Tracking Prophet
 
 **Predicting NFL Wide Receiver Success with In-Game Tracking Data**
 
