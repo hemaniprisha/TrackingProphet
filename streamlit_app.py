@@ -1,6 +1,6 @@
 """
 Tracking Prophet - Interactive Dashboard
-NFL WR Performance Prediction from In-Game Tracking Data
+Predicts NFL WR performance from college tracking data (because 40-times don't tell the whole story)
 """
 
 import streamlit as st
@@ -13,15 +13,16 @@ import warnings
 warnings.filterwarnings('ignore')
 import pickle
 import os
+import logging
 
-# Page configuration
+# Page config - wide layout works better for charts
 st.set_page_config(
     page_title="Tracking Prophet | NFL Analytics",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS styling
+# Custom styling - gradients make everything look fancier
 st.markdown("""
 <style>
     .main-header {
@@ -81,432 +82,430 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Helper function to load analysis results
 @st.cache_data
-def load_analysis_results(result_path):
-    """Load pre-computed analysis results from pickle file"""
-    if os.path.exists(result_path):
-        with open(result_path, 'rb') as f:
+def load_pkl(fpath):
+    """Load pickled results - cached so we don't reload every interaction."""
+    if os.path.exists(fpath):
+        with open(fpath, 'rb') as f:
             return pickle.load(f)
     return None
 
-# Load both analysis types
 @st.cache_data
-def load_all_results():
-    """Load both draft and NFL tracking analysis results"""
-    results = {
-        'draft': None,
-        'nfl': None,
-        'combine': None
-    }
+def get_all_data():
+    """Try to load all three analysis types if they exist."""
+    res = {'draft': None, 'nfl': None, 'combine': None}
     
-    # Try to load draft tracking results
     if os.path.exists('tracking_draft_export.pkl'):
-        results['draft'] = load_analysis_results('tracking_draft_export.pkl')
+        res['draft'] = load_pkl('tracking_draft_export.pkl')
     
-    # Try to load NFL tracking results
     if os.path.exists('tracking_nfl_export.pkl'):
-        results['nfl'] = load_analysis_results('tracking_nfl_export.pkl')
+        res['nfl'] = load_pkl('tracking_nfl_export.pkl')
     
-    # Try to load combine results for comparison
     if os.path.exists('combine_analysis_export.pkl'):
-        results['combine'] = load_analysis_results('combine_analysis_export.pkl')
+        res['combine'] = load_pkl('combine_analysis_export.pkl')
     
-    return results
+    return res
 
-# Load all results
-all_results = load_all_results()
+data_pkg = get_all_data()
+has_anything = any(data_pkg.values())
 
-# Check if we have at least one dataset
-has_data = any(all_results.values())
-
-if not has_data:
-    st.error("No analysis data found. Please run the analysis scripts first.")
+if not has_anything:
+    st.error("No data found. Run the analysis scripts first.")
     st.info("""
-    **To generate required data files:**
+    **Generate data files:**
     
-    1. **For College Tracking → Draft Analysis:**
-       ```
-       python run_analysis_draft.py --data your_tracking_data.csv
-       ```
-       This will create: `tracking_draft_export.pkl`
-    
-    2. **For College Tracking → NFL Rookie Performance:**
-       ```
-       python run_analysis_nfl.py --data your_tracking_data.csv
-       ```
-       This will create: `tracking_nfl_export.pkl`
-    
-    3. **For Combine Comparison (optional):**
-       ```
-       python combine_analysis.py
-       ```
-       This will create: `combine_analysis_export.pkl`
-    
-    Once generated, refresh this page.
+    1. College Tracking → Draft: `python run_analysis_draft.py --data tracking.csv`
+    2. College Tracking → NFL: `python run_analysis_nfl.py --data tracking.csv`
+    3. Combine (optional): `python combine_analysis.py`
     """)
     st.stop()
 
-# Extract available datasets
-available_analyses = []
-if all_results['draft']:
-    available_analyses.append('Draft Prediction')
-if all_results['nfl']:
-    available_analyses.append('NFL Rookie Performance')
-if all_results['combine']:
-    available_analyses.append('Combine (Comparison)')
+# Build available analyses list
+avail = []
+if data_pkg['draft']:
+    avail.append('Draft Prediction')
+if data_pkg['nfl']:
+    avail.append('NFL Rookie Performance')
+if data_pkg['combine']:
+    avail.append('Combine (Comparison)')
 
-# Title section
+# Header
 st.markdown('<div class="main-header">🎯 Tracking Prophet</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">Predicting NFL Success with In-Game Tracking Data</div>', unsafe_allow_html=True)
 
-# Sidebar navigation
+# Sidebar
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/en/thumb/a/a2/National_Football_League_logo.svg/400px-National_Football_League_logo.svg.png", width=180)
     
     st.title("Navigation")
     
-    # Analysis type selector
-    analysis_type = st.radio(
-        "Select Analysis Type:",
-        available_analyses,
-        help="Choose which tracking analysis to explore"
-    )
-    
+    analysis_sel = st.radio("Select Analysis Type:", avail, help="Choose analysis to explore")
+    # Resolve current dataset EARLY (needed by sidebar)
+    curr = None
+    if analysis_sel == 'Draft Prediction':
+        curr = data_pkg.get('draft')
+    elif analysis_sel == 'NFL Rookie Performance':
+        curr = data_pkg.get('nfl')
+    elif analysis_sel == 'Combine (Comparison)':
+        curr = data_pkg.get('combine')
+
+    # Safe defaults
+    mets = {}
+    r2 = 0.0
+    mae = 0.0
+
+    if curr:
+        mets = curr.get('metrics', {})
+        r2 = mets.get('test_r2', 0.0)
+        mae = mets.get('test_mae', mets.get('mae', 0.0))
+
+    st.markdown("---")
+    pg = st.radio("Navigate To:", ["Overview", "Performance Comparison", "Data Explorer", "ML Model Results", "Player Insights"], label_visibility="collapsed")
     st.markdown("---")
     
-    # Page navigation
-    page = st.radio(
-        "Navigate To:",
-        ["Overview", "Performance Comparison", "Data Explorer", "ML Model Results", "Player Insights"],
-        label_visibility="collapsed"
-    )
-    
-    st.markdown("---")
-    
-    # Show relevant stats based on selected analysis
-    if analysis_type == 'Draft Prediction' and all_results['draft']:
-        data = all_results['draft']
+    if analysis_sel == 'Draft Prediction' and data_pkg['draft']:
+        d = data_pkg['draft']
         st.markdown(f"""
-        ### Draft Analysis Stats
-        
-        **Dataset:** College Tracking Data  
-        **Target:** Draft Position/Grade  
-        **Sample:** {len(data.get('processed_data', []))} players  
-        **Model R²:** {data.get('metrics', {}).get('test_r2', 0):.3f}  
-        **MAE:** {data.get('metrics', {}).get('test_mae', 0):.2f}
+        ### Draft Analysis
+        **Dataset:** College Tracking  
+        **Target:** Draft Position  
+        **Sample:** {len(d.get('processed_data', []))} players  
+        **R²:** {d.get('metrics', {}).get('test_r2', 0):.3f}  
+        **MAE:** {d.get('metrics', {}).get('test_mae', 0):.2f}
         
         ---
-        
-        **Key Insight:**  
-        Tracking data captures real game performance that predicts draft success.
+        **Insight:** Tracking captures real performance scouts value.
         """)
-    
-    elif analysis_type == 'NFL Rookie Performance' and all_results['nfl']:
-        data = all_results['nfl']
+    elif analysis_sel == 'NFL Rookie Performance' and data_pkg['nfl']:
+        d = data_pkg['nfl']
         st.markdown(f"""
-        ### NFL Performance Stats
-        
-        **Dataset:** College Tracking → NFL Stats  
-        **Target:** NFL Rookie Production  
-        **Sample:** {len(data.get('processed_data', []))} players  
-        **Model R²:** {data.get('metrics', {}).get('test_r2', 0):.3f}  
-        **MAE:** {data.get('metrics', {}).get('test_mae', 0):.2f}
+        ### NFL Performance
+        **Dataset:** College → NFL  
+        **Target:** NFL Production  
+        **Sample:** {len(d.get('processed_data', []))} players  
+        **R²:** {d.get('metrics', {}).get('test_r2', 0):.3f}  
+        **MAE:** {d.get('metrics', {}).get('test_mae', 0):.2f}
         
         ---
-        
-        **Key Insight:**  
-        College tracking metrics predict NFL success far better than combine testing.
+        **Insight:** College tracking beats combine testing.
         """)
-    
-    elif analysis_type == 'Combine (Comparison)' and all_results['combine']:
-        data = all_results['combine']
+    elif analysis_sel == 'Combine (Comparison)' and data_pkg['combine']:
+        d = data_pkg['combine']
         st.markdown(f"""
-        ### Combine Testing Stats
-        
-        **Dataset:** NFL Combine Metrics  
-        **Target:** NFL Rookie Performance  
-        **Sample:** {len(data.get('merged_data', []))} players  
-        **Model R²:** {data.get('metrics', {}).get('test_r2', 0):.3f}  
-        **MAE:** {data.get('metrics', {}).get('mae', 0):.1f} ypg
+        ### Combine Testing
+        **Dataset:** Combine Metrics  
+        **Target:** NFL Performance  
+        **Sample:** {len(d.get('merged_data', []))} players  
+        **R²:** {d.get('metrics', {}).get('test_r2', 0):.3f}  
+        **MAE:** {d.get('metrics', {}).get('mae', 0):.1f} ypg
         
         ---
-        
-        **Limitation:**  
-        Static testing misses in-game performance factors.
+        **Limitation:** Static tests miss game skills.
         """)
 
-# Get current dataset based on selection
-current_data = None
-if analysis_type == 'Draft Prediction':
-    current_data = all_results['draft']
-elif analysis_type == 'NFL Rookie Performance':
-    current_data = all_results['nfl']
-elif analysis_type == 'Combine (Comparison)':
-    current_data = all_results['combine']
+# Get current dataset
+# Resolve current dataset based on selection
 
-# Extract key metrics
-if current_data:
-    metrics = current_data.get('metrics', {})
-    test_r2 = metrics.get('test_r2', 0)
-    test_mae = metrics.get('test_mae', 0) if 'test_mae' in metrics else metrics.get('mae', 0)
-    
-    # Success metrics at top
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        total_records = len(current_data.get('processed_data', [])) if 'processed_data' in current_data else len(current_data.get('merged_data', []))
-        st.metric("Total Records", f"{total_records:,}")
-    
-    with col2:
-        if 'processed_data' in current_data:
-            unique_players = len(current_data['processed_data']['player_name'].unique()) if 'player_name' in current_data['processed_data'].columns else total_records
+if curr:
+    c1, c2, c3, c4 = st.columns(4)
+
+    # Total records
+    if 'processed_data' in curr:
+        df = curr['processed_data']
+    else:
+        df = curr.get('merged_data')
+
+    tot = len(df) if df is not None else 0
+
+    with c1:
+        st.metric("Total Records", f"{tot:,}")
+
+    # Unique players
+    with c2:
+        if df is not None and 'player_name' in df.columns:
+            uniq = df['player_name'].nunique()
         else:
-            unique_players = len(current_data['merged_data']['player_name'].unique()) if 'player_name' in current_data['merged_data'].columns else total_records
-        st.metric("Unique Players", f"{unique_players:,}")
-    
-    with col3:
-        st.metric("Model R²", f"{test_r2:.3f}")
-    
-    with col4:
-        mae_label = "MAE" if analysis_type != 'Combine (Comparison)' else "MAE (ypg)"
-        st.metric(mae_label, f"{test_mae:.2f}")
-    
+            uniq = tot
+        st.metric("Unique Players", f"{uniq:,}")
+
+    # Model performance
+    with c3:
+        st.metric("Model R²", f"{r2:.3f}")
+
+    with c4:
+        lbl = "MAE" if analysis_sel != 'Combine (Comparison)' else "MAE (ypg)"
+        st.metric(lbl, f"{mae:.2f}")
+
     st.markdown("---")
 
-# ============================================================================
 # PAGE 1: OVERVIEW
-# ============================================================================
-if page == "Overview":
+if pg == "Overview":
     st.header("Project Overview")
     
-    # Show different content based on analysis type
-    if analysis_type in ['Draft Prediction', 'NFL Rookie Performance']:
-        col1, col2 = st.columns([2, 1])
+    if analysis_sel in ['Draft Prediction', 'NFL Rookie Performance']:
+        c1, c2 = st.columns([2, 1])
         
-        with col1:
-            if analysis_type == 'Draft Prediction':
+        with c1:
+            if analysis_sel == 'Draft Prediction':
                 st.markdown(f"""
                 ### Research Question
                 
-                **"Can college tracking data predict NFL draft success?"**
+                **"Can college tracking predict NFL draft position?"**
                 
-                This analysis uses in-game tracking metrics from college football to predict 
-                draft position and grades. Unlike static combine testing, tracking data captures:
+                Uses in-game tracking from college to predict draft position.
+                Unlike combine, tracking captures:
                 
                 - Real-game separation ability
-                - Route running efficiency
-                - Performance vs. different coverage types
-                - Consistency across multiple games
+                - Route running precision
+                - Performance vs coverage types
+                - Game consistency
                 - Explosive play creation
                 
                 ### Key Findings
                 
-                - **Model R²:** {test_r2:.3f}
-                - **Prediction Error:** {test_mae:.2f}
-                - **Sample Size:** {len(current_data.get('processed_data', []))} players
+                - **R²:** {r2:.3f}
+                - **Error:** {mae:.2f}
+                - **Sample:** {len(curr.get('processed_data', []))} players
                 
                 ### What This Means
                 
-                Tracking data provides objective, quantifiable metrics that capture the skills 
-                scouts look for. This bridges the gap between subjective evaluation and data-driven decisions.
+                Tracking provides objective metrics scouts look for.
+                Bridges subjective evaluation with data.
                 """)
-            else:  # NFL Rookie Performance
+            else:  # NFL performance
                 st.markdown(f"""
                 ### Research Question
                 
-                **"Can college tracking data predict NFL rookie performance?"**
+                **"Can college tracking predict NFL rookie success?"**
                 
-                This analysis examines whether in-game tracking metrics from college predict 
-                NFL rookie production. This directly answers: "Which college stats translate to the pros?"
+                Tests if in-game college metrics translate to pros.
+                Answers: "Which college stats matter in NFL?"
                 
                 ### Key Findings
                 
-                - **Model R²:** {test_r2:.3f}
-                - **Prediction Error:** {test_mae:.2f}
-                - **Sample Size:** {len(current_data.get('processed_data', []))} players
-                - **vs. Combine R²:** {all_results.get('combine', {}).get('metrics', {}).get('test_r2', -0.155) if all_results.get('combine') else 'N/A'}
-                
-                ### What This Means
-                
-                College tracking metrics successfully predict NFL success, validating that 
-                in-game performance matters more than isolated athletic testing.
+                - **R²:** {r2:.3f}
+                - **Error:** {mae:.2f}
+                - **Sample:** {len(curr.get('processed_data', []))} players
+                - **vs Combine:** {data_pkg.get('combine', {}).get('metrics', {}).get('test_r2', -0.155) if data_pkg.get('combine') else 'N/A'}
                 
                 ### Football Translation
                 
-                **Why This Matters for Teams:**
-                - Identifies receivers who create separation consistently (not just run fast)
-                - Reveals route-running precision that translates to NFL concepts
-                - Shows YAC ability that predicts explosive play potential
-                - Captures performance under pressure (tight windows, man coverage)
-                - Measures skills that combine testing completely misses
+                **Why Teams Care:**
+                - Identifies true separators (not just fast)
+                - Shows route precision for NFL concepts
+                - Reveals YAC ability = explosive plays
+                - Captures tight window performance
+                - Measures skills combine misses
                 
-                **Scouting Insights:**
-                - High separation metrics → Can win at catch point
-                - Route diversity → NFL versatility across formations
-                - CPOE/YACOE → Reliable playmaker, not just volume receiver
-                - COD efficiency → Can run full route tree at NFL speed
+                **Scouting Value:**
+                - High separation → wins at catch point
+                - Route diversity → NFL versatility
+                - CPOE/YACOE → reliable playmaker
+                - COD efficiency → full route tree
                 """)
             
-            # Key metrics info instead of sample data
-            st.markdown("### What The Model Captures")
+            st.markdown("### What Model Captures")
             st.markdown("""
-            This analysis uses **in-game tracking data** that measures:
-            - **Separation metrics**: Distance from defenders at key moments
-            - **Speed profiles**: Max speed, acceleration patterns, route-specific speeds
-            - **Route efficiency**: Change of direction ability, route depth consistency
-            - **Performance context**: Success against man coverage, tight window catches
-            - **Playmaking**: YAC over expected, catch percentage over expected
+            Uses **real game tracking**:
+            - **Separation**: Distance from defenders
+            - **Speed profiles**: Max speed, acceleration, route speeds
+            - **Route efficiency**: COD ability, depth consistency
+            - **Context**: Man coverage, tight windows
+            - **Playmaking**: YAC/catch % over expected
             
-            These metrics reveal **how players actually perform in game situations**, 
-            not just isolated athletic traits.
+            Reveals **actual game performance**, not just athletic traits.
             """)
         
-        with col2:
+        with c2:
             st.markdown(f"""
-            ### Key Statistics
+            ### Key Stats
             
-            **Model Performance:**
-            - R² Score: **{test_r2:.3f}**
-            - MAE: **{test_mae:.2f}**
-            - RMSE: **{metrics.get('test_rmse', 0):.2f}**
+            **Model:**
+            - R²: **{r2:.3f}**
+            - MAE: **{mae:.2f}**
+            - RMSE: **{mets.get('test_rmse', 0):.2f}**
             
             **Dataset:**
-            - Players: **{len(current_data.get('processed_data', []))}**
-            - Features: **{len(current_data.get('feature_importance', []))}**
+            - Players: **{len(curr.get('processed_data', []))}**
+            - Features: **{len(curr.get('feature_importance', []))}**
             
             ---
             
             ### Tracking Advantage
             
-            Unlike combine testing, tracking data measures:
+            Unlike combine:
             
-            ✅ Real-game speed  
-            ✅ Separation ability  
-            ✅ Route efficiency  
-            ✅ Coverage performance  
-            ✅ Explosive plays  
-            ✅ Consistency  
+            - Real game speed  
+            - Separation creation  
+            - Route precision  
+            - Coverage performance  
+            - Explosive ability  
+            - Consistency  
             
-            **Result:** Better predictions than static testing alone.
+            **Result:** Better than static tests.
             """)
         
         st.markdown("---")
         
-        # Comparison with combine (if available)
-        if all_results['combine']:
-            combine_r2 = all_results['combine']['metrics']['test_r2']
-            tracking_r2 = test_r2
-            
-            improvement = ((tracking_r2 - combine_r2) / abs(combine_r2) * 100) if combine_r2 != 0 else 0
+        # Compare to combine if available
+        if data_pkg['combine']:
+            comb_r2 = data_pkg['combine']['metrics']['test_r2']
+            track_r2 = r2
+            improve = ((track_r2 - comb_r2) / abs(comb_r2) * 100) if comb_r2 != 0 else 0
             
             st.markdown(f"""
             <div class="success-box">
-            <h2 style="color: white; margin-top: 0;">📊 Tracking Data vs. Combine Testing</h2>
-            <h3 style="color: white;">Tracking data achieves {abs(improvement):.0f}% better predictive accuracy</h3>
+            <h2 style="color: white; margin-top: 0;">Tracking vs Combine</h2>
+            <h3 style="color: white;">Tracking achieves {abs(improve):.0f}% better accuracy</h3>
             <p style="font-size: 1.1rem;">
-            <strong>Combine R²:</strong> {combine_r2:.3f} (explains {max(0, combine_r2*100):.1f}% of variance)<br>
-            <strong>Tracking R²:</strong> {tracking_r2:.3f} (explains {tracking_r2*100:.1f}% of variance)<br>
-            <strong>Improvement:</strong> {abs(improvement):.0f}% better prediction
+            <strong>Combine R²:</strong> {comb_r2:.3f} (explains {max(0, comb_r2*100):.1f}%)<br>
+            <strong>Tracking R²:</strong> {track_r2:.3f} (explains {track_r2*100:.1f}%)<br>
+            <strong>Improvement:</strong> {abs(improve):.0f}% better
             </p>
-            <p>This demonstrates that in-game performance metrics capture what matters for NFL success.</p>
+            <p>In-game metrics capture what matters for NFL success.</p>
             </div>
             """, unsafe_allow_html=True)
+        st.subheader("Football Strategy Implications")
     
-    else:  # Combine comparison
-        st.info("Select 'Draft Prediction' or 'NFL Rookie Performance' to see tracking data analysis.")
+    if analysis_sel == 'Draft Prediction':
+        st.markdown(f"""
+        ### Scouting & Draft
+        
+        **Model Insight (R² = {r2:.3f}):**
+        
+        With {r2*100:.1f}% of draft capital explained:
+        
+        1. **Value Picks**: Find prospects with better tracking than consensus
+        2. **Validate Scouting**: Objective data confirms/challenges evaluations
+        3. **Trade Strategy**: Know when to trade up based on data
+        4. **Risk Assessment**: Quantify projection uncertainty
+        
+        **Tracking Metrics Scouts Value:**
+        - Separation ability (top priority)
+        - Route diversity (versatility)
+        - Man coverage performance (ultimate test)
+        - Functional game speed (not just 40-time)
+        
+        **The {(1-r2)*100:.1f}% Gap:**
+        - Positional scarcity
+        - Intangibles (leadership, etc.)
+        - Medical/character flags
+        - Scheme fit
+        - Draft dynamics
+        """)
+    
+    elif analysis_sel == 'NFL Rookie Performance':
+        st.markdown(f"""
+        ### Player Development & Roster
+        
+        **Model Insight (R² = {r2:.3f}):**
+        
+        With {r2*100:.1f}% of NFL production explained:
+        
+        1. **Forecast Impact**: Project rookie contribution
+        2. **FA Strategy**: Find undervalued prospects
+        3. **Development**: Know what translates vs needs coaching
+        4. **Roster Build**: Depth chart based on projections
+        
+        **College Metrics That Translate:**
+        - Consistent separation (→ NFL targets)
+        - YAC ability (true playmakers)
+        - Tight window success (vs press coverage)
+        - Route efficiency at depth (stretch defense)
+        
+        **The {(1-r2)*100:.1f}% Gap:**
+        - Opportunity (volume varies by team)
+        - Scheme fit (WR usage)
+        - QB play (elevates WR stats)
+        - Adjustment period (NFL speed)
+        - Health/durability
+        """)
 
-# ============================================================================
+    else:
+        st.info("Select 'Draft Prediction' or 'NFL Rookie Performance' for tracking analysis.")
+
 # PAGE 2: PERFORMANCE COMPARISON
-# ============================================================================
-elif page == "Performance Comparison":
+elif pg == "Performance Comparison":
     st.header("Model Performance Comparison")
     
     st.markdown("""
-    Compare the predictive power of tracking data across different targets:
-    - **Draft Prediction**: How well college tracking predicts draft capital
-    - **NFL Rookie Performance**: How well college tracking predicts NFL production
+    Compare tracking data across targets:
+    - **Draft**: College tracking → draft capital
+    - **NFL**: College tracking → NFL production
     """)
     
-    # Check if we have both analyses
-    has_draft = all_results.get('draft') is not None
-    has_nfl = all_results.get('nfl') is not None
+    has_draft = data_pkg.get('draft') is not None
+    has_nfl = data_pkg.get('nfl') is not None
     
     if has_draft and has_nfl:
-        # Get metrics for both
-        draft_metrics = all_results['draft'].get('metrics', {})
-        nfl_metrics = all_results['nfl'].get('metrics', {})
+        draft_r2 = data_pkg['draft'].get('metrics', {}).get('test_r2', 0)
+        nfl_r2 = data_pkg['nfl'].get('metrics', {}).get('test_r2', 0)
         
-        draft_r2 = draft_metrics.get('test_r2', 0)
-        nfl_r2 = nfl_metrics.get('test_r2', 0)
+        c1, c2, c3 = st.columns(3)
         
-        # Comparison metrics
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.markdown("""
+        with c1:
+            st.markdown(f"""
             <div class="metric-card">
             <h3 style="color: white; margin: 0;">Draft Prediction</h3>
-            <h2 style="color: white; margin: 10px 0;">{:.3f}</h2>
+            <h2 style="color: white; margin: 10px 0;">{draft_r2:.3f}</h2>
             <p style="color: white; margin: 0;">R² Score</p>
             </div>
-            """.format(draft_r2), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
         
-        with col2:
-            st.markdown("""
+        with c2:
+            st.markdown(f"""
             <div class="success-box">
             <h3 style="color: white; margin: 0;">NFL Performance</h3>
-            <h2 style="color: white; margin: 10px 0;">{:.3f}</h2>
+            <h2 style="color: white; margin: 10px 0;">{nfl_r2:.3f}</h2>
             <p style="color: white; margin: 0;">R² Score</p>
             </div>
-            """.format(nfl_r2), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
         
-        with col3:
-            better = "Draft" if draft_r2 > nfl_r2 else "NFL"
-            diff = abs(draft_r2 - nfl_r2)
-            st.markdown("""
+        with c3:
+            winner = "Draft" if draft_r2 > nfl_r2 else "NFL"
+            gap = abs(draft_r2 - nfl_r2)
+            st.markdown(f"""
             <div class="tracking-box">
             <h3 style="color: white; margin: 0;">Better Target</h3>
-            <h2 style="color: white; margin: 10px 0;">{}</h2>
-            <p style="color: white; margin: 0;">Δ = {:.3f}</p>
+            <h2 style="color: white; margin: 10px 0;">{winner}</h2>
+            <p style="color: white; margin: 0;">Δ = {gap:.3f}</p>
             </div>
-            """.format(better, diff), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
         
         st.markdown("---")
         
-        # Side-by-side comparison chart
-        st.subheader("Predictive Power Comparison")
+        # Stacked bar chart
+        st.subheader("Predictive Power")
         
-        comparison_df = pd.DataFrame({
+        comp_df = pd.DataFrame({
             'Target': ['Draft Capital', 'NFL Production'],
-            'R² Score': [draft_r2, nfl_r2],
-            'Variance Explained (%)': [draft_r2*100, nfl_r2*100],
-            'Variance Unexplained (%)': [(1-draft_r2)*100, (1-nfl_r2)*100]
+            'Explained (%)': [draft_r2*100, nfl_r2*100],
+            'Unexplained (%)': [(1-draft_r2)*100, (1-nfl_r2)*100]
         })
         
         fig = go.Figure()
         
         fig.add_trace(go.Bar(
-            name='Variance Explained',
-            x=comparison_df['Target'],
-            y=comparison_df['Variance Explained (%)'],
+            name='Explained',
+            x=comp_df['Target'],
+            y=comp_df['Explained (%)'],
             marker_color='#2ecc71',
-            text=comparison_df['Variance Explained (%)'].apply(lambda x: f'{x:.1f}%'),
+            text=comp_df['Explained (%)'].apply(lambda x: f'{x:.1f}%'),
             textposition='inside'
         ))
         
         fig.add_trace(go.Bar(
-            name='Variance Unexplained',
-            x=comparison_df['Target'],
-            y=comparison_df['Variance Unexplained (%)'],
+            name='Unexplained',
+            x=comp_df['Target'],
+            y=comp_df['Unexplained (%)'],
             marker_color='#e74c3c',
-            text=comparison_df['Variance Unexplained (%)'].apply(lambda x: f'{x:.1f}%'),
+            text=comp_df['Unexplained (%)'].apply(lambda x: f'{x:.1f}%'),
             textposition='inside'
         ))
         
         fig.update_layout(
             barmode='stack',
-            title='Tracking Data: Draft vs NFL Performance Prediction',
+            title='Tracking Data: Draft vs NFL Prediction',
             yaxis_title='Percentage (%)',
             height=450,
             template='plotly_white',
@@ -518,165 +517,101 @@ elif page == "Performance Comparison":
         st.markdown("---")
         
         # What each predicts
-        col1, col2 = st.columns(2)
+        c1, c2 = st.columns(2)
         
-        with col1:
+        with c1:
             st.markdown("""
             ### Draft Capital Prediction
             
-            **Target Variable:** Draft round/pick selection
+            **Target:** Draft round/pick
             
-            **What High R² Means:**
-            - Tracking metrics align with NFL scout evaluations
-            - College performance translates to draft stock
-            - Objective data validates subjective scouting
+            **High R² means:**
+            - Tracking aligns with scout evals
+            - College performance → draft stock
+            - Objective data validates scouting
             
-            **Use Cases:**
-            - Find draft value (over/undervalued prospects)
-            - Project where players will be selected
-            - Identify traits scouts prioritize
+            **Use cases:**
+            - Find draft value
+            - Project selection range
+            - Identify scout priorities
             """)
         
-        with col2:
+        with c2:
             st.markdown("""
             ### NFL Production Prediction
             
-            **Target Variable:** NFL rookie performance metrics
+            **Target:** NFL rookie stats
             
-            **What High R² Means:**
-            - College skills directly translate to pros
-            - Tracking captures NFL-translatable traits
+            **High R² means:**
+            - College skills translate
+            - Tracking captures NFL traits
             - Can forecast rookie impact
             
-            **Use Cases:**
-            - Predict actual NFL performance
+            **Use cases:**
+            - Predict actual performance
             - Identify high-floor prospects
-            - Build draft models based on outcomes, not opinions
+            - Build outcome-based models
             """)
         
-        # Football insights
-        st.markdown("---")
-        st.subheader("Strategic Insights")
-        
-        if draft_r2 > nfl_r2:
-            st.markdown(f"""
-            <div class="insight-box">
-            <h3 style="color: white; margin-top: 0;">Draft Prediction is Stronger</h3>
-            <p style="font-size: 1.1rem;">
-            Draft capital (R²={draft_r2:.3f}) is more predictable than NFL production (R²={nfl_r2:.3f}).
-            </p>
-            <p><strong>What This Means:</strong></p>
-            <ul>
-                <li>NFL scouts value the same traits that tracking captures</li>
-                <li>College metrics align well with draft evaluations</li>
-                <li>Gap between draft and NFL suggests other factors matter (scheme fit, coaching, opportunity)</li>
-                <li><strong>Opportunity:</strong> Find players drafted lower than tracking suggests (value picks)</li>
-            </ul>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-            <div class="success-box">
-            <h3 style="color: white; margin-top: 0;">NFL Performance is More Predictable</h3>
-            <p style="font-size: 1.1rem;">
-            NFL production (R²={nfl_r2:.3f}) is more predictable than draft capital (R²={draft_r2:.3f}).
-            </p>
-            <p><strong>What This Means:</strong></p>
-            <ul>
-                <li>College tracking metrics directly translate to NFL success</li>
-                <li>NFL scouts may be missing traits that matter</li>
-                <li>Draft doesn't always reflect who will succeed in NFL</li>
-                <li><strong>Opportunity:</strong> Identify undervalued prospects who will outperform draft position</li>
-            </ul>
-            </div>
-            """, unsafe_allow_html=True)
-        
     elif has_draft or has_nfl:
-        st.info("""
-        Only one analysis type is currently loaded. 
-        
-        To enable comparison:
-        - Run both `run_analysis_draft.py` and `run_analysis_nfl.py`
-        - Both will use the same college tracking data
-        - One predicts draft capital, the other predicts NFL performance
-        """)
+        st.info("Only one analysis loaded. Run both scripts for comparison.")
     else:
-        st.error("No analysis data available for comparison.")
+        st.error("No data for comparison.")
 
-# ============================================================================
 # PAGE 3: DATA EXPLORER
-# ============================================================================
-elif page == "Data Explorer":
+elif pg == "Data Explorer":
     st.header("Data Explorer")
     
-    if 'processed_data' in current_data:
-        df = current_data['processed_data']
+    if 'processed_data' in curr:
+        df = curr['processed_data']
         
-        tab1, tab2, tab3 = st.tabs(["📊 Distributions", "🔗 Correlations", "🎯 Feature Importance"])
+        tab1, tab2, tab3 = st.tabs(["Distributions", "Correlations", "Feature Importance"])
         
         with tab1:
             st.subheader("Metric Distributions")
             
-            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-            
-            # Filter out columns with no data
-            valid_cols = []
-            for col in numeric_cols:
-                if df[col].notna().sum() > 0:  # Has at least some data
-                    valid_cols.append(col)
+            num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+            valid_cols = [c for c in num_cols if df[c].notna().sum() > 0]
             
             if valid_cols:
-                col1, col2 = st.columns([2, 1])
+                c1, c2 = st.columns([2, 1])
                 
-                with col1:
-                    selected_metric = st.selectbox(
-                        "Select metric to visualize:",
-                        valid_cols,
-                        format_func=lambda x: x.replace('_', ' ').title()
-                    )
+                with c1:
+                    sel = st.selectbox("Select metric:", valid_cols, format_func=lambda x: x.replace('_', ' ').title())
                 
-                with col2:
-                    bins = st.slider("Number of bins:", 10, 50, 30)
+                with c2:
+                    n_bins = st.slider("Bins:", 10, 50, 30)
                 
-                fig = px.histogram(
-                    df,
-                    x=selected_metric,
-                    nbins=bins,
-                    title=f"Distribution of {selected_metric.replace('_', ' ').title()}",
-                    color_discrete_sequence=['#667eea']
-                )
+                fig = px.histogram(df, x=sel, nbins=n_bins, title=f"Distribution: {sel.replace('_', ' ').title()}", color_discrete_sequence=['#667eea'])
                 fig.update_layout(height=450, template='plotly_white', showlegend=False)
                 st.plotly_chart(fig, width='stretch')
                 
-                # Statistics
-                col1, col2, col3, col4, col5 = st.columns(5)
-                valid_data = df[selected_metric].dropna()
+                # Stats
+                c1, c2, c3, c4, c5 = st.columns(5)
+                vdata = df[sel].dropna()
                 
-                col1.metric("Mean", f"{valid_data.mean():.2f}")
-                col2.metric("Median", f"{valid_data.median():.2f}")
-                col3.metric("Std Dev", f"{valid_data.std():.2f}")
-                col4.metric("Min", f"{valid_data.min():.2f}")
-                col5.metric("Max", f"{valid_data.max():.2f}")
+                c1.metric("Mean", f"{vdata.mean():.2f}")
+                c2.metric("Median", f"{vdata.median():.2f}")
+                c3.metric("SD", f"{vdata.std():.2f}")
+                c4.metric("Min", f"{vdata.min():.2f}")
+                c5.metric("Max", f"{vdata.max():.2f}")
             else:
-                st.warning("No valid numeric metrics found in dataset")
+                st.warning("No valid numeric metrics")
         
         with tab2:
             st.subheader("Correlation Analysis")
             
-            if len(numeric_cols) > 1:
-                # Select subset of key features
-                key_features = numeric_cols[:15] if len(numeric_cols) > 15 else numeric_cols
-                corr_matrix = df[key_features].corr()
+            if len(num_cols) > 1:
+                key_feats = num_cols[:15] if len(num_cols) > 15 else num_cols
+                corr_mat = df[key_feats].corr()
                 
                 fig = px.imshow(
-                    corr_matrix,
+                    corr_mat,
                     labels=dict(color="Correlation"),
-                    x=[m.replace('_', ' ').title() for m in corr_matrix.columns],
-                    y=[m.replace('_', ' ').title() for m in corr_matrix.columns],
+                    x=[m.replace('_', ' ').title() for m in corr_mat.columns],
+                    y=[m.replace('_', ' ').title() for m in corr_mat.columns],
                     color_continuous_scale='RdBu_r',
-                    zmin=-1,
-                    zmax=1,
-                    aspect='auto'
+                    zmin=-1, zmax=1, aspect='auto'
                 )
                 fig.update_layout(height=600, title="Feature Correlation Heatmap")
                 st.plotly_chart(fig, width='stretch')
@@ -684,141 +619,74 @@ elif page == "Data Explorer":
         with tab3:
             st.subheader("Feature Importance")
             
-            if 'feature_importance' in current_data:
-                feat_imp = current_data['feature_importance'].head(15)
+            if 'feature_importance' in curr:
+                feat_imp = curr['feature_importance'].head(15)
                 
-                fig = px.bar(
-                    feat_imp,
-                    x='importance',
-                    y='feature',
-                    orientation='h',
-                    title="Top 15 Most Important Features",
-                    color='importance',
-                    color_continuous_scale='Viridis'
-                )
+                fig = px.bar(feat_imp, x='importance', y='feature', orientation='h', title="Top 15 Features", color='importance', color_continuous_scale='Viridis')
                 fig.update_layout(height=500, showlegend=False, template='plotly_white')
                 fig.update_yaxes(title='')
                 st.plotly_chart(fig, width='stretch')
                 
                 st.dataframe(feat_imp, hide_index=True, width='stretch')
 
-# ============================================================================
 # PAGE 4: ML MODEL RESULTS
-# ============================================================================
-elif page == "ML Model Results":
-    st.header("Machine Learning Model Results")
+elif pg == "ML Model Results":
+    st.header("ML Model Results")
     
-    col1, col2, col3, col4 = st.columns(4)
+    c1, c2, c3, c4 = st.columns(4)
     
-    col1.metric("R² Score", f"{test_r2:.3f}")
-    col2.metric("MAE", f"{test_mae:.2f}")
-    col3.metric("RMSE", f"{metrics.get('test_rmse', 0):.2f}")
-    col4.metric("CV R²", f"{metrics.get('cv_mean', 0):.3f}")
+    c1.metric("R²", f"{r2:.3f}")
+    c2.metric("MAE", f"{mae:.2f}")
+    c3.metric("RMSE", f"{mets.get('test_rmse', 0):.2f}")
+    c4.metric("CV R²", f"{mets.get('cv_mean', 0):.3f}")
     
     st.markdown("---")
     
-    # Model interpretation with football context
-    if test_r2 > 0.3:
-        quality = "Excellent"
-        color_class = "success-box"
-        interpretation = "Strong predictive relationship. Model captures key traits that translate to target outcome."
-    elif test_r2 > 0.15:
-        quality = "Good"
-        color_class = "tracking-box"
-        interpretation = "Solid predictive power. Model identifies meaningful patterns in tracking data."
+    # Interpret quality
+    if r2 > 0.3:
+        qual = "Excellent"
+        box_cls = "success-box"
+        interp = "Strong predictive relationship. Captures key translatable traits."
+    elif r2 > 0.15:
+        qual = "Good"
+        box_cls = "tracking-box"
+        interp = "Solid predictive power. Identifies meaningful patterns."
     else:
-        quality = "Moderate"
-        color_class = "insight-box"
-        interpretation = "Moderate predictive power. Other factors beyond tracking contribute to outcomes."
+        qual = "Moderate"
+        box_cls = "insight-box"
+        interp = "Moderate power. Other factors beyond tracking contribute."
     
     st.markdown(f"""
-    <div class="{color_class}">
-    <h3 style="color: white; margin-top: 0;">Model Performance: {quality}</h3>
+    <div class="{box_cls}">
+    <h3 style="color: white; margin-top: 0;">Performance: {qual}</h3>
     <p style="font-size: 1.1rem;">
-    R² of {test_r2:.3f} means the model explains <strong>{test_r2*100:.1f}%</strong> of variance in the target variable.
+    R² of {r2:.3f} = model explains <strong>{r2*100:.1f}%</strong> of variance.
     </p>
-    <p><strong>{interpretation}</strong></p>
+    <p><strong>{interp}</strong></p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Football context based on analysis type
     st.markdown("---")
-    st.subheader("What This Means for Football Strategy")
     
-    if analysis_type == 'Draft Prediction':
-        st.markdown(f"""
-        ### Scouting & Draft Strategy
+    # Actual vs predicted scatter
+    if 'predictions' in curr:
+        st.subheader("Actual vs Predicted")
         
-        **Model Insight (R² = {test_r2:.3f}):**
-        
-        With {test_r2*100:.1f}% of draft capital explained by tracking metrics, teams can:
-        
-        1. **Find Value Picks**: Identify prospects whose tracking data suggests higher draft capital than consensus
-        2. **Validate Scouting**: Use objective data to confirm/challenge subjective evaluations
-        3. **Trade Strategy**: Know when to trade up for players tracking data strongly supports
-        4. **Risk Assessment**: Quantify uncertainty in draft projections
-        
-        **Key Tracking Metrics That Drive Draft Capital:**
-        - Separation ability (scouts prioritize this heavily)
-        - Route diversity (shows NFL versatility)
-        - Performance vs. man coverage (ultimate test)
-        - Speed in context (not just 40-time, but game speed with direction changes)
-        
-        **The {(1-test_r2)*100:.1f}% Gap:**
-        - Positional scarcity/need
-        - Intangibles (leadership, work ethic)
-        - Medical/character concerns
-        - Scheme fit for specific teams
-        - Draft day supply/demand dynamics
-        """)
-    
-    elif analysis_type == 'NFL Rookie Performance':
-        st.markdown(f"""
-        ### Player Development & Roster Strategy
-        
-        **Model Insight (R² = {test_r2:.3f}):**
-        
-        With {test_r2*100:.1f}% of NFL production explained by college tracking, teams can:
-        
-        1. **Forecast Rookie Impact**: Project first-year contribution with quantified confidence
-        2. **Free Agent Strategy**: Identify undervalued prospects other teams missed
-        3. **Development Plans**: Know which skills translate vs. which need coaching
-        4. **Roster Construction**: Build depth chart based on projected production
-        
-        **College Metrics That Predict NFL Success:**
-        - Consistent separation (translates directly to NFL targets)
-        - YAC ability (identifies true playmakers vs. volume receivers)
-        - Tight window success (predicts success against NFL press coverage)
-        - Route efficiency at depth (shows ability to stretch NFL defenses)
-        
-        **The {(1-test_r2)*100:.1f}% Gap:**
-        - Opportunity (volume depends on team situation)
-        - Scheme fit (some offenses feature WRs more)
-        - QB play (great QBs elevate WR stats)
-        - Adjustment period (learning NFL speed/complexity)
-        - Health/durability factors
-        """)
-    
-    st.markdown("---")
-    if 'predictions' in current_data:
-        st.subheader("Actual vs. Predicted Values")
-        
-        pred_data = current_data['predictions']
+        pred = curr['predictions']
         
         fig = go.Figure()
         
-        # Test set
         fig.add_trace(go.Scatter(
-            x=pred_data['y_test'],
-            y=pred_data['y_pred_test'],
+            x=pred['y_test'],
+            y=pred['y_pred_test'],
             mode='markers',
             name='Test Set',
             marker=dict(size=8, color='#667eea', opacity=0.6)
         ))
         
         # Perfect prediction line
-        min_val = min(pred_data['y_test'].min(), pred_data['y_pred_test'].min())
-        max_val = max(pred_data['y_test'].max(), pred_data['y_pred_test'].max())
+        min_val = min(pred['y_test'].min(), pred['y_pred_test'].min())
+        max_val = max(pred['y_test'].max(), pred['y_pred_test'].max())
         
         fig.add_trace(go.Scatter(
             x=[min_val, max_val],
@@ -829,9 +697,9 @@ elif page == "ML Model Results":
         ))
         
         fig.update_layout(
-            title=f'Actual vs. Predicted (R² = {test_r2:.3f})',
-            xaxis_title='Actual Values',
-            yaxis_title='Predicted Values',
+            title=f'Actual vs Predicted (R² = {r2:.3f})',
+            xaxis_title='Actual',
+            yaxis_title='Predicted',
             height=500,
             template='plotly_white',
             showlegend=True
@@ -839,201 +707,253 @@ elif page == "ML Model Results":
         
         st.plotly_chart(fig, width='stretch')
 
-# ============================================================================
 # PAGE 5: PLAYER INSIGHTS
-# ============================================================================
-elif page == "Player Insights":
-    st.header("Player-Level Insights")
+elif pg == "Player Insights":
+    st.header("Player Insights")
     
-    if 'processed_data' in current_data:
-        df = current_data['processed_data']
+    if 'processed_data' in curr:
+        df = curr['processed_data']
         
         if 'player_name' in df.columns:
-            # Player selector
-            col1, col2 = st.columns([3, 1])
+            c1, c2 = st.columns([3, 1])
             
-            with col1:
-                # Clean player names and filter out NaN/None
-                valid_players = df['player_name'].dropna().unique()
-                # Convert to strings and filter out any non-string values
-                valid_players = [str(p) for p in valid_players if pd.notna(p)]
+            with c1:
+                valid_players = [str(p) for p in df['player_name'].dropna().unique() if pd.notna(p)]
                 
                 if len(valid_players) > 0:
-                    player_name = st.selectbox(
-                        "Select Player:",
-                        sorted(valid_players)
-                    )
+                    plyr = st.selectbox("Select Player:", sorted(valid_players))
                 else:
-                    st.warning("No valid player names found in dataset")
+                    st.warning("No valid player names")
                     st.stop()
             
-            with col2:
+            with c2:
                 st.markdown("")
                 st.markdown("")
                 if st.button("Random Player"):
-                    player_name = np.random.choice(df['player_name'].unique())
+                    plyr = np.random.choice(valid_players)
             
             # Get player data
-            player_data = df[df['player_name'] == player_name].iloc[0]
-            
-            st.markdown(f"## {player_name}")
+            plyr_data = df[df['player_name'] == plyr].iloc[0]
+            st.markdown(f"## {plyr}")
             st.markdown("---")
             
             # Display key metrics
-            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+            num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
             
-            # Define key metrics based on analysis type
-            if analysis_type == 'NFL Rookie Performance':
-                # For NFL analysis, show NFL production metrics
-                key_metrics = [c for c in ['targets_per_game', 'receptions', 'rec_yards', 'rec_tds', 'yards_per_rec', 'avg_separation', 'max_speed'] if c in numeric_cols][:6]
+            # Key metrics based on analysis type
+            if analysis_sel == 'NFL Rookie Performance':
+                key_mets = [c for c in ['targets_per_game', 'receptions', 'rec_yards', 'rec_tds', 'yards_per_rec', 'avg_separation', 'max_speed'] if c in num_cols][:6]
             else:
-                # For draft analysis, show college tracking metrics
-                key_metrics = [c for c in ['targets', 'receptions', 'avg_separation', 'max_speed', 'draft_pick', 'draft_round'] if c in numeric_cols][:6]
+                key_mets = [c for c in ['targets', 'receptions', 'avg_separation', 'max_speed', 'draft_pick', 'draft_round'] if c in num_cols][:6]
             
-            if not key_metrics:
-                key_metrics = numeric_cols[:6]  # Fallback to first 6 numeric columns
+            if not key_mets:
+                key_mets = num_cols[:6]
             
-            cols = st.columns(len(key_metrics))
-            for idx, metric in enumerate(key_metrics):
-                if metric in player_data:
+            cols = st.columns(len(key_mets))
+            for idx, met in enumerate(key_mets):
+                if met in plyr_data.index:
+                    val = plyr_data[met]
                     cols[idx].metric(
-                        metric.replace('_', ' ').title(),
-                        f"{player_data[metric]:.2f}" if isinstance(player_data[metric], (int, float)) else player_data[metric]
+                        met.replace('_', ' ').title(),
+                        f"{val:.2f}" if isinstance(val, (int, float)) else val
                     )
             
             st.markdown("---")
             
             # Percentile rankings
-            st.subheader("Percentile Rankings vs. Dataset")
+            st.subheader("Percentile Rankings")
             
-            percentiles = []
-            labels = []
+            pcts = []
+            lbls = []
             
-            for metric in key_metrics[:6]:
-                if metric in df.columns and pd.notna(player_data.get(metric)):
-                    percentile = (df[metric] < player_data[metric]).sum() / len(df[metric].dropna()) * 100
-                    percentiles.append(percentile)
+            for met in key_mets[:6]:
+                if met in df.columns and pd.notna(plyr_data.get(met)):
+                    pct = (df[met] < plyr_data[met]).sum() / len(df[met].dropna()) * 100
+                    pcts.append(pct)
                     
-                    # Create readable labels
-                    label = metric.replace('_', ' ').title()
-                    if analysis_type == 'NFL Rookie Performance':
-                        # Add context for NFL metrics
-                        if 'per_game' in metric:
-                            label = label.replace('Per Game', '/G')
-                        elif metric == 'rec_yards':
-                            label = 'Rec Yards'
-                        elif metric == 'rec_tds':
-                            label = 'Rec TDs'
-                    labels.append(label)
+                    lbl = met.replace('_', ' ').title()
+                    if analysis_sel == 'NFL Rookie Performance':
+                        if 'per_game' in met:
+                            lbl = lbl.replace('Per Game', '/G')
+                        elif met == 'rec_yards':
+                            lbl = 'Rec Yards'
+                        elif met == 'rec_tds':
+                            lbl = 'Rec TDs'
+                    lbls.append(lbl)
             
-            if percentiles:
+            if pcts:
                 fig = go.Figure()
                 
                 fig.add_trace(go.Scatterpolar(
-                    r=percentiles,
-                    theta=labels,
+                    r=pcts,
+                    theta=lbls,
                     fill='toself',
                     fillcolor='rgba(102, 126, 234, 0.5)',
                     line=dict(color='rgb(102, 126, 234)', width=2)
                 ))
                 
                 fig.update_layout(
-                    polar=dict(
-                        radialaxis=dict(
-                            visible=True,
-                            range=[0, 100],
-                            ticksuffix='%'
-                        )
-                    ),
+                    polar=dict(radialaxis=dict(visible=True, range=[0, 100], ticksuffix='%')),
                     showlegend=False,
                     height=400,
-                    title="Player Rankings vs. Dataset"
+                    title="Player Rankings vs Dataset"
                 )
                 
                 st.plotly_chart(fig, width='stretch')
             else:
-                st.info("Insufficient metrics available for radar chart")
-                
-            # Add player insights based on analysis type
+                st.info("Insufficient metrics for radar chart")
+            
+            # Player insights based on analysis type
             st.markdown("---")
             st.subheader("Player Profile Insights")
             
-            if analysis_type == 'NFL Rookie Performance':
-                st.markdown(f"""
+            avail_cols = set(plyr_data.index)
+            
+            if analysis_sel == 'NFL Rookie Performance':
+                st.markdown("""
                 **NFL Production Analysis:**
                 
                 This player's college tracking metrics suggest:
                 """)
                 
-                # Analyze key NFL metrics
-                if 'targets_per_game' in player_data and pd.notna(player_data['targets_per_game']):
-                    tpg = player_data['targets_per_game']
-                    tpg_pct = (df['targets_per_game'] < tpg).sum() / len(df['targets_per_game'].dropna()) * 100
+                insights_found = False
+                
+                # Targets per game
+                tpg_cols = ['targets_per_game', 'targets', 'target_share']
+                tpg_col = next((col for col in tpg_cols if col in avail_cols and pd.notna(plyr_data.get(col))), None)
+                
+                if tpg_col:
+                    insights_found = True
+                    tpg = plyr_data[tpg_col]
+                    tpg_pct = (df[tpg_col] < tpg).sum() / len(df[tpg_col].dropna()) * 100
                     
                     if tpg_pct > 75:
-                        st.markdown(f"**High-Volume Receiver**: {tpg:.1f} targets/game ({tpg_pct:.0f}th percentile) - Projects as featured target in NFL")
+                        st.markdown(f"**High-Volume Receiver**: {tpg:.1f} {tpg_col.replace('_', ' ')} ({tpg_pct:.0f}th percentile) - Projects as featured target in NFL")
                     elif tpg_pct > 50:
-                        st.markdown(f"➡️ **Solid Target Share**: {tpg:.1f} targets/game - Projects as reliable WR2/WR3")
+                        st.markdown(f"**Solid Target Share**: {tpg:.1f} {tpg_col.replace('_', ' ')} ({tpg_pct:.0f}th percentile) - Projects as reliable WR2/WR3")
                     else:
-                        st.markdown(f"**Limited Volume**: {tpg:.1f} targets/game - May need development or better opportunity")
+                        st.markdown(f"**Limited Volume**: {tpg:.1f} {tpg_col.replace('_', ' ')} ({tpg_pct:.0f}th percentile) - May need development or better opportunity")
                 
-                if 'avg_separation' in player_data and pd.notna(player_data['avg_separation']):
-                    sep = player_data['avg_separation']
-                    sep_pct = (df['avg_separation'] < sep).sum() / len(df['avg_separation'].dropna()) * 100
+                # Separation
+                sep_cols = ['avg_separation', 'average_separation_99', 'sep_consistency', 'average_separation']
+                sep_col = next((col for col in sep_cols if col in avail_cols and pd.notna(plyr_data.get(col))), None)
+                
+                if sep_col:
+                    insights_found = True
+                    sep = plyr_data[sep_col]
+                    sep_pct = (df[sep_col] < sep).sum() / len(df[sep_col].dropna()) * 100
                     
                     if sep_pct > 70:
-                        st.markdown(f"**Elite Separator**: {sep:.2f} yards avg separation - Can win at NFL catch point")
+                        st.markdown(f"**Elite Separator**: {sep:.2f} yards avg separation ({sep_pct:.0f}th percentile) - Can win at NFL catch point")
                     elif sep_pct > 40:
-                        st.markdown(f"➡️ **Adequate Separation**: {sep:.2f} yards - NFL-caliber route runner")
+                        st.markdown(f"**Adequate Separation**: {sep:.2f} yards ({sep_pct:.0f}th percentile) - NFL-caliber route runner")
+                    else:
+                        st.markdown(f"**Separation Concern**: {sep:.2f} yards ({sep_pct:.0f}th percentile) - May struggle vs tight NFL coverage")
                 
-            elif analysis_type == 'Draft Prediction':
-                st.markdown(f"""
+                # Speed
+                speed_cols = ['max_speed', 'max_speed_99', 'spd_score']
+                speed_col = next((col for col in speed_cols if col in avail_cols and pd.notna(plyr_data.get(col))), None)
+                
+                if speed_col:
+                    insights_found = True
+                    speed = plyr_data[speed_col]
+                    speed_pct = (df[speed_col] < speed).sum() / len(df[speed_col].dropna()) * 100
+                    
+                    if speed_pct > 80:
+                        st.markdown(f"**Elite Speed**: {speed:.1f} ({speed_col.replace('_', ' ')}, {speed_pct:.0f}th percentile) - Elite deep threat potential")
+                    elif speed_pct > 50:
+                        st.markdown(f"**Above Average Speed**: {speed:.1f} ({speed_col.replace('_', ' ')}, {speed_pct:.0f}th percentile)")
+                
+                # YAC ability
+                yac_cols = ['YACOE_MEAN', 'yac_ability', 'yards_after_catch']
+                yac_col = next((col for col in yac_cols if col in avail_cols and pd.notna(plyr_data.get(col))), None)
+                
+                if yac_col:
+                    insights_found = True
+                    yac = plyr_data[yac_col]
+                    yac_pct = (df[yac_col] < yac).sum() / len(df[yac_col].dropna()) * 100
+                    
+                    if yac_pct > 70:
+                        st.markdown(f"**Elite Playmaker**: {yac:.2f} YAC over expected ({yac_pct:.0f}th percentile) - Creates after catch")
+                    elif yac > 0:
+                        st.markdown(f"**Positive YAC**: {yac:.2f} over expected ({yac_pct:.0f}th percentile)")
+                
+                if not insights_found:
+                    st.info("Unable to generate detailed insights - key metrics not available for this player")
+            
+            elif analysis_sel == 'Draft Prediction':
+                st.markdown("""
                 **Draft Profile Analysis:**
                 
                 Based on college tracking metrics:
                 """)
                 
-                if 'draft_pick' in player_data and pd.notna(player_data['draft_pick']):
-                    pick = player_data['draft_pick']
-                    round_num = player_data.get('draft_round', 'Unknown')
-                    
-                    st.markdown(f"**Actual Draft Position**: Round {round_num}, Pick {pick}")
+                insights_found = False
                 
-                if 'avg_separation' in player_data and pd.notna(player_data['avg_separation']):
-                    sep = player_data['avg_separation']
-                    sep_pct = (df['avg_separation'] < sep).sum() / len(df['avg_separation'].dropna()) * 100
+                # Draft position
+                if 'draft_pick' in avail_cols and pd.notna(plyr_data.get('draft_pick')):
+                    insights_found = True
+                    pick = plyr_data['draft_pick']
+                    round_num = plyr_data.get('draft_round', 'Unknown')
+                    st.markdown(f"**Actual Draft Position**: Round {round_num}, Pick {int(pick)}")
+                
+                # Separation
+                sep_cols = ['avg_separation', 'average_separation_99', 'sep_consistency']
+                sep_col = next((col for col in sep_cols if col in avail_cols and pd.notna(plyr_data.get(col))), None)
+                
+                if sep_col:
+                    insights_found = True
+                    sep = plyr_data[sep_col]
+                    sep_pct = (df[sep_col] < sep).sum() / len(df[sep_col].dropna()) * 100
                     
                     if sep_pct > 75:
-                        st.markdown(f"**Top Separator**: {sep:.2f} yards - Trait scouts prioritize heavily")
-                    
-                if 'max_speed' in player_data and pd.notna(player_data['max_speed']):
-                    speed = player_data['max_speed']
-                    speed_pct = (df['max_speed'] < speed).sum() / len(df['max_speed'].dropna()) * 100
+                        st.markdown(f"**Top Separator**: {sep:.2f} yards ({sep_pct:.0f}th percentile) - Trait scouts prioritize heavily")
+                    elif sep_pct > 50:
+                        st.markdown(f"**Good Separator**: {sep:.2f} yards ({sep_pct:.0f}th percentile)")
+                
+                # Speed
+                speed_cols = ['max_speed', 'max_speed_99', 'spd_score']
+                speed_col = next((col for col in speed_cols if col in avail_cols and pd.notna(plyr_data.get(col))), None)
+                
+                if speed_col:
+                    insights_found = True
+                    speed = plyr_data[speed_col]
+                    speed_pct = (df[speed_col] < speed).sum() / len(df[speed_col].dropna()) * 100
                     
                     if speed_pct > 80:
-                        st.markdown(f"**Elite Game Speed**: {speed:.1f} mph in-game - Elite deep threat potential")
-        else:
-            st.info("Player names not available in dataset")
-    else:
-        st.info("Processed data not available for player insights")
+                        st.markdown(f"**Elite Game Speed**: {speed:.1f} ({speed_col.replace('_', ' ')}, {speed_pct:.0f}th percentile) - Elite deep threat potential")
+                    elif speed_pct > 60:
+                        st.markdown(f"**Above Average Speed**: {speed:.1f} ({speed_pct:.0f}th percentile)")
+                
+                # Production score
+                if 'production_score' in avail_cols and pd.notna(plyr_data.get('production_score')):
+                    insights_found = True
+                    prod = plyr_data['production_score']
+                    prod_pct = (df['production_score'] < prod).sum() / len(df['production_score'].dropna()) * 100
+                    
+                    if prod_pct > 75:
+                        st.markdown(f"**High Producer**: {prod:.1f} production score ({prod_pct:.0f}th percentile)")
+                
+                if not insights_found:
+                    st.info("Unable to generate detailed insights - key metrics not available for this player")
 
 # Footer
 st.markdown("---")
 st.markdown("---")
 
-col1, col2, col3 = st.columns([1, 2, 1])
+c1, c2, c3 = st.columns([1, 2, 1])
 
-with col2:
+with c2:
     st.markdown(f"""
     <div style='text-align: center; padding: 2rem 0;'>
         <h4>Tracking Prophet</h4>
         <p style='color: #888;'>
             NFL Wide Receiver Performance Prediction via In-Game Tracking Data<br>
-            Predicting {analysis_type if 'analysis_type' in locals() else 'NFL Success'} from College Metrics
+            Predicting {analysis_sel if 'analysis_sel' in locals() else 'NFL Success'} from College Metrics
         </p>
         <p style='color: #888; margin-top: 1rem;'>
             <strong>Analysis Types Available:</strong><br>
-            {', '.join(available_analyses) if available_analyses else 'None'}
+            {', '.join(avail) if avail else 'None'}
         </p>
         <p style='margin-top: 1rem;'>
             <a href='https://github.com/hemaniprisha' target='_blank' style='margin: 0 10px; color: #667eea; text-decoration: none;'>GitHub</a> | 

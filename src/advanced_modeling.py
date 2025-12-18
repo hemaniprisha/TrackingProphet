@@ -360,13 +360,28 @@ class AdvancedModelingPipeline:
         return self
     
     def shap_analysis(self, X, sample_size=100):
-        """Compute SHAP values for the best model (tree-based only)."""
+        """Compute SHAP values for the best model."""
         print("\n\nSHAP Analysis")
+        
+        if not SHAP_AVAILABLE:
+            print("SHAP not installed")
+            return self
         
         X_samp = X.sample(min(sample_size, len(X)), random_state=42)
         
-        explainer = shap.TreeExplainer(self.best_model)
+        # Choose explainer based on model type
+        if hasattr(self.best_model, 'feature_importances_'):
+            # Tree-based model
+            explainer = shap.TreeExplainer(self.best_model)
+        elif hasattr(self.best_model, 'coef_'):
+            # Linear model (Ridge, ElasticNet, etc.)
+            explainer = shap.LinearExplainer(self.best_model, X_samp)
+        else:
+            print(f"SHAP not supported for {type(self.best_model).__name__}")
+            return self
+        
         shap_vals = explainer.shap_values(X_samp)
+        
         
         # Average absolute SHAP = feature importance
         mean_abs = np.abs(shap_vals).mean(axis=0)

@@ -45,14 +45,16 @@ Improvement over Combine:
 
 Top 10 Predictive Features:
 
-               Model  CV R² Mean  CV R² Std  Train R²   Test R²  Test MAE  Test RMSE  Overfit Gap
-6      xgboost_tuned    0.674298   0.058477  0.830249  0.688635  4.069918   8.976108     0.141614
-3            xgboost    0.662876   0.062247  0.973046  0.686259  3.808462   9.010299     0.286787
-1      random_forest    0.633095   0.066307  0.800207  0.676740  3.621381   9.145960     0.123467
-4           lightgbm    0.642641   0.082899  0.931455  0.676709  3.619120   9.146400     0.254746
-2  gradient_boosting    0.652574   0.052527  0.963332  0.662971  3.680707   9.338709     0.300360
-0              ridge    0.350490   0.081936  0.375636  0.374561  9.689781  12.721722     0.001075
-5        elastic_net    0.344807   0.076133  0.367945  0.365831  9.857632  12.810201     0.002114
+               Model  CV R² Mean  ...  Test RMSE  Overfit Gap
+6      xgboost_tuned    0.674298  ...   8.976108     0.141614
+3            xgboost    0.662876  ...   9.010299     0.286787
+1      random_forest    0.633095  ...   9.145960     0.123467
+4           lightgbm    0.642641  ...   9.146400     0.254746
+2  gradient_boosting    0.652574  ...   9.338709     0.300360
+0              ridge    0.350490  ...  12.721722     0.001075
+5        elastic_net    0.344807  ...  12.810201     0.002114
+
+[7 rows x 8 columns]
 
 Football Translation:
 • Separation consistency > raw speed
